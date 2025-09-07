@@ -1,0 +1,37 @@
+# .gitignore
+
+# ################ #
+# Secrets & Config #
+# ################ #
+
+# Ignore the secrets file for the command-line script (Phase 1)
+.env
+
+# Ignore the folder containing secrets for the Streamlit app (Phase 2)
+.streamlit/secrets.toml
+
+
+# ###################### #
+# Python Virtual Environments & Cache #
+# ###################### #
+
+# Ignore the virtual environment folder. This is large, machine-specific,
+# and can be recreated from requirements.txt.
+venv/
+
+# Ignore Python's cache folder
+__pycache__/
+
+# Ignore compiled Python files
+*.pyc
+
+
+# ############################## #
+# OS-specific files (Good Practice) #
+# ############################## #
+
+# macOS-specific
+.DS_Store
+
+# Windows-specific
+Thumbs.db
