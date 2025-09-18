@@ -3,46 +3,65 @@
 import streamlit as st
 from jira import JIRA, JIRAError
 
-def _get_jira_client():
-    """Initializes and returns a Jira client using secrets. Returns None on failure."""
+def get_jira_client():
+    """
+    Initializes and returns a JIRA client using credentials from secrets.
+    """
     try:
-        jira_server = st.secrets["JIRA_SERVER"]
-        jira_username = st.secrets["JIRA_USERNAME"]
-        jira_token = st.secrets["JIRA_API_TOKEN"]
-        return JIRA(server=jira_server, basic_auth=(jira_username, jira_token))
-    except KeyError as e:
-        st.error(f"Jira credential '{e.args[0]}' not found in secrets.")
+        jira_options = {'server': st.secrets["JIRA_SERVER"]}
+        jira_client = JIRA(
+            options=jira_options,
+            basic_auth=(
+                st.secrets["JIRA_USERNAME"],
+                st.secrets["JIRA_API_TOKEN"]
+            )
+        )
+        return jira_client
+    except (KeyError, AttributeError) as e:
+        st.error(f"Jira credentials not found in secrets.toml. Please check your configuration. Missing key: {e}")
         return None
-    except Exception as e:
-        st.error(f"Failed to connect to Jira: {e}")
+    except JIRAError as e:
+        st.error(f"Jira authentication failed: {e.status_code} - {e.text}")
         return None
 
 def fetch_story(ticket_id):
-    """Fetches a story from Jira and returns the formatted text."""
-    jira_client = _get_jira_client()
-    if not jira_client:
+    """
+    Fetches the summary and description of a Jira ticket.
+    """
+    jira = get_jira_client()
+    if not jira:
         return None
-
+        
     try:
-        issue = jira_client.issue(ticket_id)
-        return f"**{issue.fields.summary}**\n\n{issue.fields.description}"
+        issue = jira.issue(ticket_id)
+        # Combine summary and description for the full context
+        story_text = f"Summary: {issue.fields.summary}\n\nDescription:\n{issue.fields.description}"
+        return story_text
     except JIRAError as e:
-        st.error(f"Jira Error: {e.text}. Check the ticket ID and your permissions.")
+        if e.status_code == 404:
+            st.error(f"Jira ticket '{ticket_id}' not found.")
+        else:
+            st.error(f"An error occurred while fetching from Jira: {e.text}")
         return None
 
-def update_story_description(ticket_id, text_to_append):
-    """Appends text to a Jira story's description."""
-    jira_client = _get_jira_client()
-    if not jira_client:
+def append_to_story(ticket_id, content, content_type="Solution Overview"):
+    """
+    Appends content to a Jira ticket's description.
+    """
+    jira = get_jira_client()
+    if not jira:
         return False
 
     try:
-        issue = jira_client.issue(ticket_id)
-        current_description = issue.fields.description if issue.fields.description else ""
-        new_description = current_description + text_to_append
-        issue.update(description=new_description)
-        st.success(f"Successfully appended solutions to Jira ticket {ticket_id}!")
+        issue = jira.issue(ticket_id)
+        new_comment = f"\n\n---\n*AI Generated {content_type}:*\n{content}"
+        
+        # Append the new content to the existing description
+        current_description = issue.fields.description or ""
+        issue.update(description=current_description + new_comment)
+        
+        st.success(f"Successfully appended {content_type} to Jira ticket {ticket_id}.")
         return True
     except JIRAError as e:
-        st.error(f"Jira Error during update: {e.text}")
+        st.error(f"Failed to update Jira ticket {ticket_id}: {e.text}")
         return False

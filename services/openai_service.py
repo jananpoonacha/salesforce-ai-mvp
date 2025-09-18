@@ -3,7 +3,13 @@
 import streamlit as st
 from openai import OpenAI
 import json
-from prompts import get_triage_prompt, get_final_solution_prompt, get_technical_solution_prompt, get_code_generation_prompt
+from prompts import (
+    get_triage_prompt, 
+    get_final_solution_prompt, 
+    get_technical_solution_prompt, 
+    get_code_generation_prompt,
+    get_chat_system_prompt
+)
 
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -59,7 +65,7 @@ def generate_technical_solution(user_story, solution_overview):
 
 def generate_salesforce_code(user_story, solution_overview, technical_solution):
     """
-    NEW: Generates Salesforce code files based on the full context.
+    Generates Salesforce code files based on the full context.
     Returns a parsed JSON object with a list of files.
     """
     if not client:
@@ -77,3 +83,19 @@ def generate_salesforce_code(user_story, solution_overview, technical_solution):
     except Exception as e:
         st.error(f"An error occurred during code generation: {e}")
         return None
+
+def get_chat_response(messages):
+    """
+    Gets a response from the AI based on conversation history.
+    """
+    if not client: return "Error: OpenAI client not initialized."
+    system_prompt = {"role": "system", "content": get_chat_system_prompt()}
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[system_prompt] + messages
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        st.error(f"An error occurred with the OpenAI API: {e}")
+        return "Sorry, I encountered an error. Please try again."
