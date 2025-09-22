@@ -67,6 +67,8 @@ def get_technical_solution_prompt(user_story, solution_overview, schema_context)
     </solution_overview>
 
     Generate a technical solution direction for a Salesforce developer that is consistent with the provided <salesforce_schema>.
+    
+    **CRITICAL INSTRUCTION:** For every component you design (Apex Class, Trigger, LWC, etc.), you **MUST** state its full, deployable file name on its own line, for example: `File: MyTriggerHandler.cls`. This is required for the system to parse the files for code generation.
     """
 
 def get_single_file_code_prompt(full_context, file_path):
@@ -98,13 +100,6 @@ def get_dependency_analysis_prompt(filenames):
     {filenames}
 
     Your output MUST be a single, valid JSON object with one key, "generation_order", which is an array of the filenames sorted in the correct dependency order.
-
-    Example:
-    {{
-      "generation_order": ["MyUtil.cls", "AccountTriggerHandler.cls", "AccountTrigger.trigger", "myLwc.js", "myLwc.html", "myLwc.js-meta.xml"]
-    }}
-
-    Now, provide the JSON response for the list of filenames provided above.
     """
 
 def get_entity_extraction_prompt(user_story):
@@ -119,7 +114,7 @@ def get_entity_extraction_prompt(user_story):
     {user_story}
     ---
 
-    Your output MUST be a single, valid JSON object containing one key, "objects", which is an array of strings. Do not include objects that are not directly related to the request.
+    Your output MUST be a single, valid JSON object containing one key, "objects", which is an array of strings.
     """
 
 def get_chat_system_prompt():
