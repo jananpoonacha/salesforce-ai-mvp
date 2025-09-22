@@ -1,76 +1,125 @@
 # prompts.py
 
-def get_triage_prompt(user_story):
+def get_triage_prompt(user_story, schema_context):
     """
-    Creates the initial prompt to analyze a user story and decide whether to 
-    ask clarifying questions or provide a direct solution.
-    """
-    return f"""
-    You are a Senior Salesforce Business Analyst AI. Your first task is to analyze the following user story for ambiguities.
-
-    User Story:
-    ---
-    {user_story}
-    ---
-
-    Analyze the user story and respond ONLY with a JSON object. The JSON object must have a "status" field.
-    - If the story is perfectly clear, set "status" to "clear" and include a "solution" field with the generated Solution Overview.
-    - If the story is ambiguous, set "status" to "ambiguous" and provide a "clarification_questions" field, which is an array of objects.
-    - For each question object, include a "question", an array of "options", and a "type" field set to either 'single' for single-choice questions or 'multiple' for multi-choice questions.
-    """
-
-def get_final_solution_prompt(user_story, context_from_answers):
-    """
-    Creates the prompt to generate a final Solution Overview after the user has
-    provided answers to clarifying questions.
+    Creates the initial prompt to analyze a user story with org context.
     """
     return f"""
-    The user provided the following story:
-    ---
+    You are a Senior Salesforce Business Analyst AI. Your single most important rule is to ground all of your responses in the Salesforce Org Schema Context provided. The context is your absolute source of truth. If information in the user story seems to conflict with the schema, you must use the schema and point out the discrepancy.
+
+    <salesforce_schema>
+    {schema_context}
+    </salesforce_schema>
+
+    <user_story>
     {user_story}
-    ---
-    The user provided the following clarifications to your questions:
-    ---
+    </user_story>
+
+    Analyze the <user_story> using only the information within the <salesforce_schema>. Respond ONLY with a JSON object with a "status" field.
+    - If the story is perfectly clear and can be accomplished with the given schema, set "status" to "clear" and include a "solution" field with the generated Solution Overview.
+    - If the story is ambiguous or requires components not listed in the schema, set "status" to "ambiguous" and provide a "clarification_questions" field.
+    - For each question object, include a "question", "options", and a "type" ('single' or 'multiple').
+    """
+
+def get_final_solution_prompt(user_story, context_from_answers, schema_context):
+    """
+    Creates the prompt for a final Solution Overview using org and user context.
+    """
+    return f"""
+    Based on the original user story, the provided Salesforce schema, AND the new user clarifications, generate a final, comprehensive Solution Overview. 
+    
+    **Mandatory Rule:** Your solution **MUST** exclusively reference objects and fields present in the <salesforce_schema>.
+
+    <salesforce_schema>
+    {schema_context}
+    </salesforce_schema>
+
+    <user_story>
+    {user_story}
+    </user_story>
+
+    <user_clarifications>
     {context_from_answers}
-    ---
-    Based on the original story AND the new clarifications, please generate a final, comprehensive Solution Overview.
+    </user_clarifications>
+    
+    Generate the final Solution Overview now.
     """
 
-def get_technical_solution_prompt(user_story, solution_overview):
+def get_technical_solution_prompt(user_story, solution_overview, schema_context):
     """
-    Creates the prompt for the Technical Architect AI to generate a technical solution.
+    Creates the prompt for the Technical Architect AI with org context.
     """
     return f"""
     You are a Salesforce Technical Architect. Your primary goal is to leverage standard Salesforce features wherever possible.
-    **Guiding Principle:** Before recommending custom code (like Apex or LWC), first consider if the requirement can be met using standard Salesforce declarative features such as Flows, Validation Rules, Page Layouts, or Formula Fields. If you must recommend custom code, you must briefly justify why standard features are insufficient.
-    Create a detailed technical solution based on the following user story and functional description.
+
+    **Mandatory Rule:** You **MUST** create a solution that exclusively uses the objects and fields provided in the <salesforce_schema>. Do not suggest creating new objects or fields. Your solution's credibility depends on strictly adhering to the provided schema.
+
+    <salesforce_schema>
+    {schema_context}
+    </salesforce_schema>
+
+    <user_story>
+    {user_story}
+    </user_story>
+
+    <solution_overview>
+    {solution_overview}
+    </solution_overview>
+
+    Generate a technical solution direction for a Salesforce developer that is consistent with the provided <salesforce_schema>.
+    """
+
+def get_single_file_code_prompt(full_context, file_path):
+    """
+    Creates a simpler prompt to generate only one file at a time, specifying the full path.
+    """
+    return f"""
+    You are an expert Salesforce Developer AI. Your task is to generate the complete and correct source code for a single Salesforce file based on the provided context.
+
+    **Full Context (User Story, Solution, and Technical Design):**
+    <context>
+    {full_context}
+    </context>
+
+    **Instruction:**
+    Generate the complete source code for the following file path ONLY: **{file_path}**
+
+    Your output MUST be only the raw code for this file. Do not include any extra text, explanations, or markdown formatting like ```apex. Just provide the code itself.
+    """
+
+def get_dependency_analysis_prompt(filenames):
+    """
+    Creates a prompt to ask the AI to determine the correct file generation order.
+    """
+    return f"""
+    You are a Salesforce dependency analysis expert. I have a list of filenames that need to be generated. Based on standard Salesforce development patterns (e.g., utility classes are needed by handlers, handlers are used by triggers, components have -meta.xml files), determine the correct, sequential order to generate these files.
+
+    **List of Filenames:**
+    {filenames}
+
+    Your output MUST be a single, valid JSON object with one key, "generation_order", which is an array of the filenames sorted in the correct dependency order.
+
+    Example:
+    {{
+      "generation_order": ["MyUtil.cls", "AccountTriggerHandler.cls", "AccountTrigger.trigger", "myLwc.js", "myLwc.html", "myLwc.js-meta.xml"]
+    }}
+
+    Now, provide the JSON response for the list of filenames provided above.
+    """
+
+def get_entity_extraction_prompt(user_story):
+    """
+    Creates a prompt to ask the AI to identify relevant SFDC object API names.
+    """
+    return f"""
+    You are a Salesforce entity extraction expert. Read the following user story and identify all potential Salesforce object API names (standard and custom) that are relevant to implementing the request.
+
     User Story:
     ---
     {user_story}
     ---
-    Approved Functional Description:
-    ---
-    {solution_overview}
-    ---
-    Generate a technical solution direction for a Salesforce developer.
-    """
 
-def get_code_generation_prompt(user_story, solution_overview, technical_solution):
-    """
-    Creates the prompt for the Code Generation AI.
-    """
-    return f"""
-    You are an expert Salesforce Developer AI specializing in Apex and Lightning Web Components. Your task is to generate production-quality Salesforce code based on the provided context.
-    **Context:**
-    1.  **Original User Story:** ```{user_story}```
-    2.  **Functional Solution Overview:** ```{solution_overview}```
-    3.  **Approved Technical Solution:** ```{technical_solution}```
-    **Instructions:**
-    1.  Strictly adhere to the Approved Technical Solution.
-    2.  Follow Salesforce best practices: bulkification, error handling, and security (CRUD/FLS checks).
-    3.  Generate a corresponding Apex Test Class for any Apex code. The test class must have high code coverage (aim for 90%+) and include tests for positive, negative, and bulk scenarios.
-    4.  The output MUST be a single, valid JSON object with a single key, "files", which is an array of objects.
-    5.  Each object in the "files" array must have two keys: "file_name" (e.g., "MyClass.cls") and "code_content" (the full source code as a string).
+    Your output MUST be a single, valid JSON object containing one key, "objects", which is an array of strings. Do not include objects that are not directly related to the request.
     """
 
 def get_chat_system_prompt():
@@ -79,15 +128,4 @@ def get_chat_system_prompt():
     """
     return """
     You are "Design Orchestrator," an expert AI assistant specializing in Salesforce solution architecture.
-    Your personality is helpful, professional, and slightly formal.
-    Your capabilities are:
-    1.  **Analyze User Stories:** You can take a user story, either pasted directly or by fetching it from Jira using a ticket ID (e.g., "PROJ-123").
-    2.  **Generate Solution Overviews:** You create clear, business-friendly solution overviews.
-    3.  **Generate Technical Solutions:** You create detailed technical designs based on the overview, prioritizing standard Salesforce features.
-    4.  **Generate Code:** You can generate Apex and LWC code based on the technical solution.
-
-    When a user provides a Jira Ticket ID, you must use your internal `fetch_jira_story` tool to get the details.
-    When a user pastes a story, analyze it directly.
-    Guide the user through the process step-by-step. For example, after generating a Solution Overview, ask them if they would like to proceed with a Technical Solution.
-    Keep your responses concise and focused on the task at hand.
     """
